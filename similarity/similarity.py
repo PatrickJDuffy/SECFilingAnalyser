@@ -14,8 +14,8 @@ def cos_Similarity(d1, d2, input_type = 'filename', max_features_val = 500):
 
     n = 3
     top_n = feature_array[tfidf_sorting][:n]
-    for line in difflib.unified_diff(d1, d2, fromfile='file1', tofile='file2', lineterm=''):
-        print (line) 
+    # for line in difflib.unified_diff(d1, d2, fromfile='file1', tofile='file2', lineterm=''):
+    #     print (line) 
 
     #print (top_n)
     count_wm = countvectorizer.fit_transform([d1, d2])
