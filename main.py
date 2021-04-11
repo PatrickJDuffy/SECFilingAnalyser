@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from similarity.similarity import cos_Similarity
 from preprocessing.preprocessor import preProcess_text
 from preprocessing.cleanText import clean_text
@@ -12,6 +13,8 @@ cleanTexts = True
 pos_Tag = True
 preProcess = True
 tf_idf = True
+
+
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 entriesPath = os.path.join(ROOT_DIR, 'SEC-EDGAR-text\\output_files_examples\\batch_0018\\001\\AIG_0000005272')
@@ -41,6 +44,7 @@ csv_file = open(TEMP_FILE_DIR + '\csv_Ticker_Files\\' + ticker + '.csv' , "+w")
 
 if(cleanTexts  == True):
     print('Cleaning text...')
+    start = datetime.now()
     last = ""
     for entry in entries[3][1]:
         path = entriesPath + '\\' + entry
@@ -51,11 +55,14 @@ if(cleanTexts  == True):
         path2 = CLEAN_TEXT_DIR + '\\clean_' + entry 
         file = open(path2 , "+w")
         file.write(cleanText)
-    print('Cleaning process complete\n')
+    end = datetime.now()
+    dTime = end - start
+    print('Cleaning process complete in ', dTime.seconds, 's')
 
 
 if preProcess:
     print("Preprocessing documents...")
+    start = datetime.now()
     for entry in entries[3][1]:
         path = CLEAN_TEXT_DIR + '\\clean_' + entry
         file = open(path, "r")
@@ -64,10 +71,13 @@ if preProcess:
         file = open(path2 , "+w")
         for word in words:
             file.write(word + " ")
-    print('PreProcessing Complete')
+    end = datetime.now()
+    dTime = end - start
+    print('PreProcessing Complete in ', dTime.seconds, 's')
 
 if tf_idf:
     print('Inspecting Document Similarity...')
+    start = datetime.now()
     corpus = []
     for entry in entries[3][1]: 
         path = PREPROCESS_TEXT_DIR + '\\preProcess_' + entry
@@ -84,10 +94,13 @@ if tf_idf:
             #print(sim)
         lastDoc = document
         docNum += 1
-    print('Document Similarity Complete')
+    end = datetime.now()
+    dTime = end - start
+    print('Document Similarity Complete in ', dTime.seconds, 's')
 
 if sentiment_Analysis:
     print('Sentiment Analysis...')
+    start = datetime.now()
     sentimentAnalyzer = SentimentAnalysis.SentimentAnalysis(r"C:\Users\duffy\Documents\FYP bits\SECFilingAnalyser\sentiment\SentimentWordLists_2018.xlsx")
     for entry in entries[3][1]:
         filePath = PREPROCESS_TEXT_DIR + '\\preProcess_' + entry
@@ -101,7 +114,9 @@ if sentiment_Analysis:
         weakModCount = sentimentAnalyzer.weakModSentimentCounter(words)
         consCount = sentimentAnalyzer.consSentimentCounter(words)
         #print(entry, wordCount, negCount, posCount, uncertCount, litCount, strongModCount, weakModCount, consCount)
-    print('Sentiment Analysis Complete')
+    end = datetime.now()
+    dTime = end - start
+    print('Sentiment Analysis Complete in ', dTime.seconds, 's')
 
 
 # if pos_Tag:
