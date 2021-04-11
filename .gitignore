@@ -1,1 +1,13 @@
+# Compiled source #
+###################
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+*.pyc
+
+temp_Files
+SEC-EDGAR-text
 
