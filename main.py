@@ -15,8 +15,8 @@ preProcess = True
 tf_idf = True
 
 
-
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+#Add more robust pathway
 entriesPath = os.path.join(ROOT_DIR, 'SEC-EDGAR-text\\output_files_examples\\batch_0018\\001\\AIG_0000005272')
 TEMP_FILE_DIR = os.path.join(ROOT_DIR, 'temp_files')
 CLEAN_TEXT_DIR = os.path.join(TEMP_FILE_DIR, 'clean_Files')
