@@ -1,35 +1,59 @@
-from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
-from sklearn.metrics.pairwise import linear_kernel
-import difflib
-import pandas as pd
-import numpy as np
+import pickle
+import os
+import src.utils
+from threading import *
+from sklearn.feature_extraction.text import TfidfVectorizer
 
-def cos_Similarity(d1, d2, input_type = 'filename', max_features_val = 500):
-    vectorizer = TfidfVectorizer(input = input_type, max_features = max_features_val)  
-    countvectorizer = CountVectorizer(analyzer= 'word')
-    tfidf = vectorizer.fit_transform([d1, d2])
-    
-    feature_array = np.array(vectorizer.get_feature_names())
-    tfidf_sorting = np.argsort(tfidf.toarray()).flatten()[::-1]
 
-    n = 3
-    top_n = feature_array[tfidf_sorting][:n]
-    # for line in difflib.unified_diff(d1, d2, fromfile='file1', tofile='file2', lineterm=''):
-    #     print (line) 
+def getVectorizer(input_type = 'content', max_features_val = 500):
+    return TfidfVectorizer(input = input_type, max_features = max_features_val)  
 
-    #print (top_n)
-    count_wm = countvectorizer.fit_transform([d1, d2])
-    #count_tokens = countvectorizer.get_feature_names()
-    tfidf_tokens = vectorizer.get_feature_names()
-    
-    #df_countvect = pd.DataFrame(data = count_wm.toarray(),columns = count_tokens)
-    df_tfidfvect = pd.DataFrame(data = tfidf.toarray(),columns = tfidf_tokens)
-    df_tfidfvect.sort_values(by=1 ,axis = 1)
-    
-    #print("Count Vectorizer\n")
-    #print(df_countvect)
-    #print("\nTD-IDF Vectorizer\n")
-    #print(df_tfidfvect)
-    return ((tfidf * tfidf.T).A)
+def fitVectorizer(d1, d2, vectorizer):
+    with open(d1, 'rb') as f:
+        content1 = ' '.join([str(elem) for elem in pickle.load(f)])
+    with open(d2, 'rb') as f:
+        content2 = ' '.join([str(elem) for elem in pickle.load(f)])
+    return vectorizer.fit_transform([content1, content2])
+
+def cos_Sim(tfidf):
+    return (tfidf*tfidf.T)[0,1]
+
+
+def tfIDF(entries, sentimentChanges, PICKLE_DIR):
+    for headings in entries:           
+        corpus = []     
+        for entry in headings[2]:
+            path = PICKLE_DIR + '\\preProccess_' + entry
+            corpus.append([path, entry])
+            lastDoc = ''
+            
+        docNum = 0
+        for document in corpus:
+            if docNum == 0:
+                lastDoc = document[0]
+                docNum += 1
+                continue
+
+            if docNum < len(corpus):
+                #Gets Vectorizer and fits the model with current and last doc
+                vect = getVectorizer()
+                tfidf = fitVectorizer(document[0], lastDoc, vect)
+                #Finds similarity to last document
+                sim = cos_Sim(tfidf)
+                #print(sim)
+                date = src.utils.getEntryDate(document[1])
+                form = src.utils.getEntryForm(document[1])
+                item = src.utils.getEntryItem(document[1])
+                #list, date, form, item
+
+                index = src.utils.getIndex(sentimentChanges, date, form, item)
+                if (index != -1):
+                    sentimentChanges[index].append(sim)
+                
+            lastDoc = document[0]
+            docNum += 1
+
+    return sentimentChanges
+
 
 

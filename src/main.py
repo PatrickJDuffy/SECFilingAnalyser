@@ -1,132 +1,183 @@
 import os
+import pickle
+from threading import *
+from collections import Counter
+from nltk.corpus import stopwords
+from functools import reduce
+import re
 from datetime import datetime
-from src.similarity.similarity import cos_Similarity
+from numpy.lib import index_tricks
+
+from progressbar.widgets import Bar
+from src.similarity.similarity import getVectorizer, fitVectorizer, cos_Sim, tfIDF
 from src.preprocessing.preprocessor import preProcess_text
 from src.preprocessing.cleanText import clean_text
-from src.preprocessing.preprocessor import pos_text, preProcess_text
+from src.preprocessing.dataset import createDataset
+
 from src.sentiment import SentimentAnalysis
-import src.utils
-from yellowbrick.text import PosTagVisualizer
+from src.stockdata.crsp import Stock
+from src.utils import checkValidPrices, checkSymbol, findUniqueHeadings, createDirs, getEntries, getDates,\
+        removeDir
 
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-def main(path = 'SEC-EDGAR-text\\output_files_examples\\batch_0018\\001\\AIG_0000005272',
-    	sentiment_Analysis = True, cleanTexts = True, pos_Tag = True, preProcess = True, tf_idf = True):
+def main(ticker, entriesPath,
+    	sentiment_Analysis = True , 
+        preProcess = True, 
+        tf_idf = True, 
+        createFeatureSpace = True):
+
     
-    ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-    entriesPath = os.path.join(ROOT_DIR, path)
-    TEMP_FILE_DIR = os.path.join(ROOT_DIR, 'temp_files')
-    CLEAN_TEXT_DIR = os.path.join(TEMP_FILE_DIR, 'clean_Files')
-    PREPROCESS_TEXT_DIR = os.path.join(TEMP_FILE_DIR, 'preprocessed_Files')
-    ticker = 'AIG'
-    # Gets filling entries for a given company
-    entriesDir = os.listdir(entriesPath)
 
     if not os.path.exists(entriesPath):
         print("Entries not found...")
-        exit
+        return
 
-    #headings = SLinkedList()
+    TEMP_FILE_DIR, CLEAN_TEXT_DIR, SENTIMENT_DIR, PICKLE_DIR, DATASET_DIR = createDirs(ticker)
+
+    with open(str(ROOT_DIR)+ '\\temp_Filesx\\finComps.txt', "r") as f:
+        contents = f.read()
+
+        if(ticker in contents):
+            print(ticker, ' Ticker already processed')
+            return
+
+
+    #print('check4')
+    if not checkSymbol(ticker):
+        print(ticker, " No Stock Details")
+        with open(str(ROOT_DIR)+ '\\temp_Filesx\\finComps.txt', "+a") as f:
+            f.write(ticker + "*******\n")
+        removeDir(TEMP_FILE_DIR + "\\dataset")
+        removeDir(TEMP_FILE_DIR + "\\clean_files")
+        removeDir(TEMP_FILE_DIR + "\\pickle_Files")
+        removeDir(TEMP_FILE_DIR + "\\sentimentCount_Files")
+        removeDir(TEMP_FILE_DIR)
+        return
+
+
+    print("Starting : " + ticker)
+
+
+
+    # Gets filling entries for a given company
+    entriesDir = os.listdir(entriesPath)
+
+
     # Stores the different headings
-    headings = src.utils.findUniqueHeadings(entriesDir)
+    headings = findUniqueHeadings(entriesDir)
+
+    #Reverse Sort to differentiate between item1 and item1A for instance 
+    #otherwise item 1A could be wrongly tagged as Item 1
     headings.sort(reverse=True)
 
     entries = []
 
+
+
     for heading in headings:
-        entries.append([heading, src.utils.getEntries(entriesDir, heading)])
-
-    csv_file = open(TEMP_FILE_DIR + '\csv_Ticker_Files\\' + ticker + '.csv' , "+w")
+        entries.append([heading[0], heading[1], getEntries(entriesDir, heading[1], heading[0])])
 
 
-    if(cleanTexts  == True):
-        print('Cleaning text...')
-        start = datetime.now()
-        last = ""
-        for entry in entries[3][1]:
-            path = entriesPath + '\\' + entry
-            #print(path)
-            file = open(path, "r", encoding="utf8")
-            cleanText = clean_text(file.read())
+    dates = getDates(entries)     
 
-            path2 = CLEAN_TEXT_DIR + '\\clean_' + entry 
-            file = open(path2 , "+w")
-            file.write(cleanText)
-        end = datetime.now()
-        dTime = end - start
-        print('Cleaning process complete in ', dTime.seconds, 's')
+    if not checkValidPrices(ticker, dates):
+        print(ticker, ' invalid price data')
+        return
+
+
+    numOfEntries = 0
+    for heading in headings:
+        for entry in heading:
+            numOfEntries = numOfEntries + 1
 
 
     if preProcess:
-        print("Preprocessing documents...")
+        print(ticker, 'Preprocessing text...')
         start = datetime.now()
-        for entry in entries[3][1]:
-            path = CLEAN_TEXT_DIR + '\\clean_' + entry
-            file = open(path, "r")
-            words = preProcess_text(file.read())
-            path2 = PREPROCESS_TEXT_DIR + '\\preProcess_' + entry 
-            file = open(path2 , "+w")
-            for word in words:
-                file.write(word + " ")
-        end = datetime.now()
-        dTime = end - start
-        print('PreProcessing Complete in ', dTime.seconds, 's')
 
-    if tf_idf:
-        print('Inspecting Document Similarity...')
-        start = datetime.now()
-        corpus = []
-        for entry in entries[3][1]: 
-            path = PREPROCESS_TEXT_DIR + '\\preProcess_' + entry
-            corpus.append(path)
-            lastDoc = ''
-        docNum = 0
-        for document in corpus:
-            if docNum == 0:
-                lastDoc = document
-                docNum += 1
-                continue
-            if docNum <= len(corpus):
-                sim = cos_Similarity(document, lastDoc)
-                #print(sim)
-            lastDoc = document
-            docNum += 1
+        for headings in entries:
+            for entry in headings[2]:       
+                path = entriesPath + '\\' + entry
+                file = open(path + ".txt", "r", encoding="utf8")
+                cleanText = clean_text(file.read())               
+                words = preProcess_text(cleanText)
+                with open(PICKLE_DIR + '\\' + "preProccess_" + entry, 'wb') as f:
+                        pickle.dump(words, f)
+
         end = datetime.now()
         dTime = end - start
-        print('Document Similarity Complete in ', dTime.seconds, 's')
+        print(ticker, ' Preprocessing text complete in ', dTime.seconds, 's')
+
+
+    sentimentChanges = [] 
 
     if sentiment_Analysis:
-        print('Sentiment Analysis...')
+        print(ticker, ' Starting Sentiment Analysis')
+        path = os.path.join(ROOT_DIR, 'sentiment\SentimentWordLists_2018.xlsx')
+        SENTIMENT_ANALYSER = SentimentAnalysis.SentimentAnalysis(path)
         start = datetime.now()
-        sentimentAnalyzer = SentimentAnalysis.SentimentAnalysis(r"C:\Users\duffy\Documents\FYP bits\SECFilingAnalyser\src\sentiment\SentimentWordLists_2018.xlsx")
-        for entry in entries[3][1]:
-            filePath = PREPROCESS_TEXT_DIR + '\\preProcess_' + entry
-            words = preProcess_text(open(filePath , "r").read())
-            wordCount = len(words)
-            negCount = sentimentAnalyzer.negSentimentCounter(words)
-            posCount = sentimentAnalyzer.posSentimentCounter(words)
-            uncertCount = sentimentAnalyzer.uncertSentimentCounter(words)
-            litCount = sentimentAnalyzer.litSentimentCounter(words)
-            strongModCount = sentimentAnalyzer.strongModSentimentCounter(words)
-            weakModCount = sentimentAnalyzer.weakModSentimentCounter(words)
-            consCount = sentimentAnalyzer.consSentimentCounter(words)
-            #print(entry, wordCount, negCount, posCount, uncertCount, litCount, strongModCount, weakModCount, consCount)
+
+        sentimentChanges = SentimentAnalysis.sentiment_Analyzer(entries, sentimentChanges, SENTIMENT_ANALYSER, PICKLE_DIR)
+
         end = datetime.now()
         dTime = end - start
-        print('Sentiment Analysis Complete in ', dTime.seconds, 's')
+        print(ticker, ' Sentiment Analysis Complete in ', dTime.seconds, 's')
 
 
-    # if pos_Tag:
+    if tf_idf:
+
+        print(ticker, ' Inspecting Document Similarity...')
+
+        if not sentiment_Analysis:
+            with open(PICKLE_DIR + "\\sentimentChanges_" + ticker, 'rb') as f:
+                sentimentChanges = pickle.load(f)
+            path = os.path.join(ROOT_DIR, 'sentiment\SentimentWordLists_2018.xlsx')
+            SENTIMENT_ANALYSER = SentimentAnalysis.SentimentAnalysis(path)
+
+        start = datetime.now()
+
+        sentimentChanges = tfIDF(entries, sentimentChanges, PICKLE_DIR)
+
+        with open(PICKLE_DIR + "\\sentimentChanges_" + ticker, 'wb') as f:
+            pickle.dump(sentimentChanges, f)
+
+        end = datetime.now()
+        dTime = end - start
+        print(ticker, ' Document Similarity Complete in ', dTime.seconds, 's')
+
+
+    # take second element for sort
+    def takeDate(elem):
+        return elem[0]
+
+    
+    if createFeatureSpace:
+        start = datetime.now()
+
+        if not tf_idf:
+            try:
+                with open(PICKLE_DIR + "\\sentimentChanges_" + ticker, 'rb') as f:
+                    sentimentChanges = pickle.load(f)
+            except:
+                print(ticker, ' Unable to acquire SentimentChanges file')
+                return
+
+        print(ticker, " Creating dataset")
         
-    #     for entry in entries[0][1]:
-    #         path = tempFilePath + '\\clean_' + entry 
-    #         print(path)
-    #         file = open(path, "r")
-    #         tagged = pos_text(file.read())
-    #         #print()
-    #         viz = PosTagVisualizer()
-    #         viz.fit(tagged)
-    #         viz.show()
-    #         exit
+        stock = Stock(ticker)
+        
+        dates.sort(key=takeDate)
 
+        dataset = createDataset(sentimentChanges, dates, ticker, stock, ROOT_DIR)
+    	
+        path2 = DATASET_DIR +  "\\features"
+        with open(path2 + "_data", 'wb') as f:
+            pickle.dump(dataset, f)    
+        with open(str(ROOT_DIR)+ '\\temp_Filesx\\finComps.txt', "+a") as f:
+            f.write(ticker + "\n")
+        end = datetime.now()
+        dTime = end - start
+        print(ticker, ' Feature Space Complete in ', dTime.seconds, 's')
 
 

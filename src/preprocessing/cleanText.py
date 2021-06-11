@@ -9,22 +9,17 @@ from html import unescape
 
 
 def clean_text(text, rem_ellipses=True, tokenize_words = True, remove_stopwords = True,
-                dec_html=False, conv_lcase=True, expand_abbrev=True, stemming = True,
+                conv_lcase=True, expand_abbrev=True, stemming = True,
                 rem_punc=True, repl_nonprint_chars=True, rem_wspace=True):
 
     # Remove ellipsis i.e. "..."
-    # Started with this as there is often problems with processing ellipses, so
-    # it's best to remove them first
     if rem_ellipses:
         text = re.sub(r"\.{2,}", " ", text)
 
-    # Removes non printable characters e.g. UTF-8 BOM characters and emojis
+
+    # Removes non printable characters e.g. UTF-8 BOM characters
     if repl_nonprint_chars:
         text = re.sub(r"[^" + string.printable + "]", "", text)
-
-    # Decodes the html
-    if dec_html:
-        text = unescape(text)
 
     # Converts to lower case
     if conv_lcase:
@@ -43,7 +38,7 @@ def clean_text(text, rem_ellipses=True, tokenize_words = True, remove_stopwords 
     # Removes punctuation
     if rem_punc:
         text = re.sub(r"[" + string.punctuation + "]", " ", text)
-        # text = text.translate(str.maketrans("", "", string.punctuation))
+
 
     # Removes whitespace
     if rem_wspace:
@@ -55,5 +50,5 @@ def clean_text(text, rem_ellipses=True, tokenize_words = True, remove_stopwords 
     #     stop_words = stopwords.words('english')
     #     words = [word for word in text if word not in stop_words]
 
-
     return text
+
